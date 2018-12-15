@@ -103,8 +103,8 @@ class ReversiEnv(gym.Env):
         for i in range(8):
             tmp = self.directions[i](my) & opp
             for j in range(5):
-                tmp |= self.directions[i](tmp) & tmp
-            pos |= self.directions[i](tmp) & tmp
+                tmp |= self.directions[i](tmp) & opp
+            pos |= self.directions[i](tmp) & emp
 
         return self.board_to_list(pos)
         
