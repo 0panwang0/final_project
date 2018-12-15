@@ -129,7 +129,7 @@ class ReversiEnv(gym.Env):
         return self.board
 
     def get_empty(self):
-        return (~ (self.black_board | self.white_board) & MASK
+        return (~ (self.black_board | self.white_board)) & MASK
 
 
     @staticmethod
