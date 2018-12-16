@@ -147,10 +147,14 @@ class ReversiEnv(gym.Env):
             self.skip()
             board = self.__get_board()
             winner = self.winner()
-            if winner == self.GAMING:
-                return board, gaming_reward, winner
+            if winner == action[2]:
+                return board, win_reward, winner
             elif winner == self.DRAW:
                 return board, draw_reward, winner
+            elif winner == self.GAMING:
+                return board, gaming_reward, winner
+            else:  # 对方胜利
+                return board, lose_reward, winner
 
     def reset(self):
         self.black_board = 0

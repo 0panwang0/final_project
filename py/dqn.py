@@ -41,7 +41,7 @@ class DQN:
         self.TargetQtable, self.TargetQ_Weights = self.createNetwork()
 
         # 定义优化器
-        self.action_input, self.y_input, self.optimizer = self.buildOptimizer()
+        self.action_input, self.y_input, self.optimizer, self.loss = self.buildOptimizer()
 
     def createNetwork(self):
         # 输入层权重
@@ -74,7 +74,7 @@ class DQN:
         readout_action = tf.reduce_sum(tf.multiply(self.Qtable, a_input), reduction_indices=1)
         loss = tf.reduce_mean(tf.square(y_input - readout_action))
         optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
-        return a_input, y_input, optimizer
+        return a_input, y_input, optimizer, loss
 
     def trainNetwork(self):
         minibatch = random.sample(self.buffer, BATCH_SIZE)
@@ -88,16 +88,16 @@ class DQN:
         Qtable_batch = self.Qtable.eval(feed_dict={self.board_input: n_b_batch})
         for i in range(BATCH_SIZE):
             terminal = minibatch[i][4]
-            if terminal:
-                y_batch.append(r_batch[i])
-            else:
+            if terminal == self.env.GAMING:
                 y_batch.append(r_batch[i] + GAMMA * np.max(Qtable_batch[i]))
-
-        self.optimizer.run(feed_dict={
+            else:
+                y_batch.append(r_batch[i])
+        _, loss = self.sess.run([self.optimizer, self.loss], feed_dict={
             self.y_input: y_batch,
             self.action_input: a_batch,
             self.board_input: b_batch
         })
+        return loss
 
     def epsilon_greedy(self, board, my_color):
         """
@@ -156,7 +156,7 @@ class DQN:
     def run(self):
         # ----------------------------initial----------------------------
         saver = tf.train.Saver()  # 储存器
-        checkpoint = tf.train.get_checkpoint_state('save network')
+        checkpoint = tf.train.get_checkpoint_state('save/')
 
         if checkpoint and checkpoint.model_checkpoint_path:
             saver.restore(self.sess, checkpoint.model_checkpoint_path)
@@ -189,7 +189,8 @@ class DQN:
                     # 当经验池中的数据足够多时开始训练
                     if len(self.buffer) > OBSERVE:
                         self.cnt += 1
-                        self.trainNetwork()
+                        loss = self.trainNetwork()
+                        print("loss:", loss)
                         # 同步目标网络
                         if self.cnt % TARGET_Q_STEP == 0:
                             self.copyWeightsToTarget()
@@ -205,8 +206,8 @@ class DQN:
                 turn += 1
 
             # 保存模型
-            if self.cnt % SAVE_EPISODE == 0:
-                saver.save(self.sess, 'save/', global_step=self.cnt)
+            if episode % SAVE_EPISODE == 0:
+                saver.save(self.sess, 'save/', global_step=episode)
 
 
 def main():
