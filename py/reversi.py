@@ -19,6 +19,7 @@ class ReversiEnv(gym.Env):
     def __init__(self):
         self.black_board = 0
         self.white_board = 0
+        self.skip_count = 0
 
         '''棋盘中央放入四个棋子，黑白棋子各两个'''
         self.black_board |= (1 << self.__get_index(3, 4)) | (1 << self.__get_index(4, 3))
@@ -27,8 +28,6 @@ class ReversiEnv(gym.Env):
         self.directions = [self.__to_n, self.__to_s, self.__to_w, self.__to_e, self.__to_nw, self.__to_ne, self.__to_sw, self.__to_se]
 
         self.viewer = None
-
-        self.count = 0  # 计数器
 
     # --------------------------------------public-----------------------------------------
     def get_valid_pos(self, my_color):
@@ -55,6 +54,61 @@ class ReversiEnv(gym.Env):
 
         return self.board_to_list(pos)
 
+    def flip(self, action, color):
+        if color == self.BLACK:
+            my = self.black_board
+            opp = self.white_board
+        elif color == self.WHITE:
+            my = self.white_board
+            opp = self.black_board
+
+        pos = 1 << action
+        for i in range(8):
+            tmp = self.directions[i](pos)
+            mask = 0
+            while tmp & opp:
+                mask |= tmp
+                tmp = self.directions[i](tmp)
+            
+            if tmp & my:
+                my = (my ^ mask) & self.MASK
+                opp = (opp ^ mask) & self.MASK
+
+        if color == self.BLACK:
+            self.black_board = my
+            self.white_board = opp
+        elif color == self.WHITE:
+            self.white_board = my
+            self.black_board = opp
+
+    def is_over(self):
+        '''
+        结束游戏有两种情况：
+        1. 棋盘上没有空位；
+        2. 棋盘上有空位，但是双方都无处落子。
+        '''
+        if self.skip_count == 2:
+            return True
+        if self.__get_empty() == 0:
+            return True
+        return False
+
+    def winner(self):
+        '''返回赢的一方。如果尚未结束或者平局，返回0。'''
+        if self.is_over():
+            black_piece = self.__count_bits(self.black_board)
+            white_piece = self.__count_bits(self.white_board)
+            if black_piece > white_piece:
+                return self.BLACK
+            elif black_piece == white_piece:
+                return 0
+            else:
+                return self.WHITE
+        return 0
+    
+    def skip(self):
+        self.skip_count += 1
+
     def step(self, action):
         """
         ###修改父类中的step函数，请不要修改函数名###
@@ -63,6 +117,10 @@ class ReversiEnv(gym.Env):
         :return:下一个状态，动作价值，是否结束
         """
         pass
+        '''
+        如果没有地方下棋，记得调用skip
+        反之，要给self.skip_count置零
+        '''
 
     def reset(self):
         self.black_board = 0
@@ -72,8 +130,6 @@ class ReversiEnv(gym.Env):
         self.black_board |= (1 << self.__get_index(3, 4)) | (1 << self.__get_index(4, 3))
         self.white_board |= (1 << self.__get_index(3, 3)) | (1 << self.__get_index(4, 4))
 
-        self.count = 0
-        # return self.board
 
     def board_to_list(self, board):
         """
@@ -142,3 +198,4 @@ class ReversiEnv(gym.Env):
         x = (x & 0x0000ffff0000ffff) + ((x & 0xffff0000ffff0000) >> 16)
         x = (x & 0x00000000ffffffff) + ((x & 0xffffffff00000000) >> 32)
         return x
+
