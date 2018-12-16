@@ -12,6 +12,8 @@ class ReversiEnv(gym.Env):
     }
     BLACK = -1
     WHITE = 1
+    DRAW = 65535
+    GAMING = 65534
     BOARD_WIDTH = 8
     BOARD_SIZE = 64
     MASK = 0xffff_ffff_ffff_ffff
@@ -25,7 +27,8 @@ class ReversiEnv(gym.Env):
         self.black_board |= (1 << self.__get_index(3, 4)) | (1 << self.__get_index(4, 3))
         self.white_board |= (1 << self.__get_index(3, 3)) | (1 << self.__get_index(4, 4))
 
-        self.directions = [self.__to_n, self.__to_s, self.__to_w, self.__to_e, self.__to_nw, self.__to_ne, self.__to_sw, self.__to_se]
+        self.directions = [self.__to_n, self.__to_s, self.__to_w, self.__to_e, self.__to_nw, self.__to_ne, self.__to_sw,
+                           self.__to_se]
 
         self.viewer = None
 
@@ -69,7 +72,7 @@ class ReversiEnv(gym.Env):
             while tmp & opp:
                 mask |= tmp
                 tmp = self.directions[i](tmp)
-            
+
             if tmp & my:
                 my = (my ^ mask) & self.MASK
                 opp = (opp ^ mask) & self.MASK
@@ -101,11 +104,12 @@ class ReversiEnv(gym.Env):
             if black_piece > white_piece:
                 return self.BLACK
             elif black_piece == white_piece:
-                return 0
+                return self.DRAW
             else:
                 return self.WHITE
-        return 0
-    
+        else:
+            return self.GAMING
+
     def skip(self):
         self.skip_count += 1
 
@@ -129,7 +133,6 @@ class ReversiEnv(gym.Env):
         '''棋盘中央放入四个棋子，黑白棋子各两个'''
         self.black_board |= (1 << self.__get_index(3, 4)) | (1 << self.__get_index(4, 3))
         self.white_board |= (1 << self.__get_index(3, 3)) | (1 << self.__get_index(4, 4))
-
 
     def board_to_list(self, board):
         """
@@ -198,4 +201,3 @@ class ReversiEnv(gym.Env):
         x = (x & 0x0000ffff0000ffff) + ((x & 0xffff0000ffff0000) >> 16)
         x = (x & 0x00000000ffffffff) + ((x & 0xffffffff00000000) >> 32)
         return x
-
