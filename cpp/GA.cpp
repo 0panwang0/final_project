@@ -81,19 +81,38 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     ChrFit* result = new ChrFit[size];
     Reversi game;
     AI bot;
-    int temp;
+    int score, step, temp;
     for(int i = 0; i < size; i++){
         result[i].chr = group[i];
     }
+//    for(int i = 0; i < size; i++){
+//        for(int j = 0; j < size; j++){
+//            if(i == j){
+//                continue;
+//            }
+//            temp = chromosomeCompetition(game, bot, group[i], group[j]) ? 1 : -1;
+//            result[i].fitness += temp;
+//            result[j].fitness -= temp;
+//        }
+//    }
+    int schedule[size];
     for(int i = 0; i < size; i++){
-        for(int j = 0; j < size; j++){
-            if(i == j){
-                continue;
+        schedule[i] = i;
+    }
+    step = 2;
+    while(step <= size){
+        for(int i = 0; i < size; i += step){
+            score = chromosomeCompetition(game, bot, group[schedule[i]], group[schedule[i+step/2]]) ? 1 : -1;
+            score -= chromosomeCompetition(game, bot, group[schedule[i+step/2]], group[schedule[i]]) ? 1 : -1;
+            result[schedule[i]].fitness += score;
+            result[schedule[i+step/2]].fitness -= score;
+            if(score < 0){
+                temp = schedule[i];
+                schedule[i] = schedule[i+step/2];
+                schedule[i+step/2] = temp;
             }
-            temp = chromosomeCompetition(game, bot, group[i], group[j]) ? 1 : -1;
-            result[i].fitness += temp;
-            result[j].fitness -= temp;
         }
+        step *= 2;
     }
     sort(result, result+size, cmp);
     return result;
@@ -129,7 +148,7 @@ void GA::doMutation(uint32_t *group, int size) {
 }
 
 void GA::algorithm() {
-    int epoch = 1000, size = 16, chosen = 4, loss;
+    int epoch = 1000, size = 64, chosen = 16, loss;
     uint32_t* group = generateGroup(size);
 
     for(int i = 0; i < epoch; i++){

@@ -14,9 +14,9 @@ using std::vector;
 using PII = std::pair<int, int>;
 
 // 博弈树搜索最大深度
-const int MAX_DEPTH = 1;
+const int MAX_DEPTH = 6;
 // 终局的最大深度
-const int MAX_FINAL_DEPTH = 2;
+const int MAX_FINAL_DEPTH = 8;
 
 // 无穷大
 const int INF = 1e9;
