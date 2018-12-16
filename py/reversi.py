@@ -60,10 +60,10 @@ class ReversiEnv(gym.Env):
 
     def flip(self, action, color):
         if color == self.BLACK:
-            my = self.black_board
+            my = self.black_board | (1 << action)
             opp = self.white_board
         elif color == self.WHITE:
-            my = self.white_board
+            my = self.white_board | (1 << action)
             opp = self.black_board
 
         pos = 1 << action
@@ -120,7 +120,7 @@ class ReversiEnv(gym.Env):
         """
         ###修改父类中的step函数，请不要修改函数名###
         该函数用于翻转对方棋子
-        :param action: 包括坐标、执棋方棋子颜色、我的棋子颜色  例如：[55,1, 1] 表示： 坐标(55 // 8, 55 % 8), 白棋, 白棋
+        :param action: 包括坐标、执棋方棋子颜色、我的棋子颜色  例如：[55, 1, 1] 表示： 坐标(55 // 8, 55 % 8), 白棋, 白棋
         :return:下一个状态，动作价值，是否结束
         """
         win_reward = 1000
@@ -128,8 +128,9 @@ class ReversiEnv(gym.Env):
         draw_reward = 0
         gaming_reward = 0
 
-        if action:
+        if action[0] != -1:
             self.clear_skip()
+
             self.flip(action[0], action[1])
             board = self.__get_board()
             winner = self.winner()
@@ -144,6 +145,12 @@ class ReversiEnv(gym.Env):
 
         else:
             self.skip()
+            board = self.__get_board()
+            winner = self.winner()
+            if winner == self.GAMING:
+                return board, gaming_reward, winner
+            elif winner == self.DRAW:
+                return board, draw_reward, winner
 
     def reset(self):
         self.black_board = 0
@@ -152,6 +159,8 @@ class ReversiEnv(gym.Env):
         '''棋盘中央放入四个棋子，黑白棋子各两个'''
         self.black_board |= (1 << self.__get_index(3, 4)) | (1 << self.__get_index(4, 3))
         self.white_board |= (1 << self.__get_index(3, 3)) | (1 << self.__get_index(4, 4))
+
+        return self.__get_board()
 
     def board_to_list(self, board):
         """
@@ -228,9 +237,3 @@ class ReversiEnv(gym.Env):
         board[black_list] = self.BLACK
         board[white_list] = self.WHITE
         return board
-
-
-if __name__ == '__main__':
-    env = ReversiEnv()
-    print(env.get_valid_pos(-1))
-    # env.flip(20, 1)
