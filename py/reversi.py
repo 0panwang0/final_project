@@ -123,8 +123,8 @@ class ReversiEnv(gym.Env):
         :param action: 包括坐标、执棋方棋子颜色、我的棋子颜色  例如：[55, 1, 1] 表示： 坐标(55 // 8, 55 % 8), 白棋, 白棋
         :return:下一个状态，动作价值，是否结束
         """
-        win_reward = 1000
-        lose_reward = -1000
+        win_reward = 100
+        lose_reward = -100
         draw_reward = 0
         gaming_reward = 0
 
