@@ -98,7 +98,6 @@ class ReversiEnv(gym.Env):
         return False
 
     def winner(self):
-        '''返回赢的一方。如果尚未结束或者平局，返回0。'''
         if self.is_over():
             black_piece = self.__count_bits(self.black_board)
             white_piece = self.__count_bits(self.white_board)
@@ -207,7 +206,7 @@ class ReversiEnv(gym.Env):
     '''
 
     def __low_bit_index(self, x):
-        return self.__low_bit(x).bit_length()
+        return self.__low_bit(x).bit_length() - 1
 
     '''
     https://stackoverflow.com/questions/9829578/fast-way-of-counting-non-zero-bits-in-positive-integer
@@ -233,4 +232,5 @@ class ReversiEnv(gym.Env):
 
 if __name__ == '__main__':
     env = ReversiEnv()
-    env.flip(20, -1)
+    print(env.get_valid_pos(-1))
+    # env.flip(20, 1)
