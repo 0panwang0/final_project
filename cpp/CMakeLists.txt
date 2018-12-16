@@ -6,4 +6,4 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_executable(Reversi main.cpp Reversi.hpp Reversi.cpp GA.hpp GA.cpp)
 
-add_executable(Test test.cpp)
+add_executable(Test GA.hpp GA.cpp Reversi.hpp Reversi.cpp test.cpp)
