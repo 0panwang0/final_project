@@ -4,3 +4,4 @@
 */__pycache/
 .vscode/
 /cpp/cmake-build-debug
+save/
