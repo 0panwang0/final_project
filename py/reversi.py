@@ -1,5 +1,6 @@
 import gym
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -113,18 +114,37 @@ class ReversiEnv(gym.Env):
     def skip(self):
         self.skip_count += 1
 
+    def clear_skip(self):
+        self.skip_count = 0
+
     def step(self, action):
         """
         ###修改父类中的step函数，请不要修改函数名###
         该函数用于翻转对方棋子
-        :param action: 包括坐标和棋子颜色  例如：[1,3,1] 表示： 坐标(1,3)，白棋
+        :param action: 包括坐标、执棋方棋子颜色、我的棋子颜色  例如：[55,1, 1] 表示： 坐标(55 // 8, 55 % 8), 白棋, 白棋
         :return:下一个状态，动作价值，是否结束
         """
-        pass
-        '''
-        如果没有地方下棋，记得调用skip
-        反之，要给self.skip_count置零
-        '''
+        win_reward = 1000
+        lose_reward = -1000
+        draw_reward = 0
+        gaming_reward = 0
+
+        if action:
+            self.clear_skip()
+            self.flip(action[0], action[1])
+            board = self.__get_board()
+            winner = self.winner()
+            if winner == action[2]:
+                return board, win_reward, winner
+            elif winner == self.DRAW:
+                return board, draw_reward, winner
+            elif winner == self.GAMING:
+                return board, gaming_reward, winner
+            else:  # 对方胜利
+                return board, lose_reward, winner
+
+        else:
+            self.skip()
 
     def reset(self):
         self.black_board = 0
@@ -201,3 +221,16 @@ class ReversiEnv(gym.Env):
         x = (x & 0x0000ffff0000ffff) + ((x & 0xffff0000ffff0000) >> 16)
         x = (x & 0x00000000ffffffff) + ((x & 0xffffffff00000000) >> 32)
         return x
+
+    def __get_board(self):
+        black_list = np.array(self.board_to_list(self.black_board))
+        white_list = np.array(self.board_to_list(self.white_board))
+        board = np.zeros([self.BOARD_SIZE])
+        board[black_list] = self.BLACK
+        board[white_list] = self.WHITE
+        return board
+
+
+if __name__ == '__main__':
+    env = ReversiEnv()
+    env.flip(20, -1)
