@@ -1,2 +1,5 @@
 # Ignore project configure folder.
+.gitignore
 /.idea
+*/__pycache/
+.vscode/

@@ -48,7 +48,7 @@ class ReversiEnv(gym.Env):
             opp = self.black_board
 
         for i in range(8):
-            tmp = self.directions[i](my) & opp
+            tmp = self.directions[i](my) & opp & self.MASK
             for j in range(5):
                 tmp |= self.directions[i](tmp) & opp
             pos |= self.directions[i](tmp) & emp
@@ -128,7 +128,7 @@ class ReversiEnv(gym.Env):
     '''
 
     def __low_bit_index(self, x):
-        self.__low_bit(x).bit_length()
+        return self.__low_bit(x).bit_length()
 
     '''
     https://stackoverflow.com/questions/9829578/fast-way-of-counting-non-zero-bits-in-positive-integer
