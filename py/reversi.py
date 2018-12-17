@@ -178,6 +178,18 @@ class ReversiEnv(gym.Env):
 
         return res
 
+    def render(self, mode='human'):
+        board = self.__get_board()
+        for i in range(self.BOARD_WIDTH):
+            for j in range(self.BOARD_WIDTH):
+                if board[i * self.BOARD_WIDTH + j] == self.BLACK:
+                    print("*", end=' ')
+                elif board[i * self.BOARD_WIDTH + j] == self.WHITE:
+                    print("O", end=' ')
+                else:
+                    print("·", end=' ')
+            print()
+
     # --------------------------------------private-----------------------------------------
     def __get_empty(self):
         return (~ (self.black_board | self.white_board)) & self.MASK

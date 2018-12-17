@@ -3,6 +3,7 @@ import numpy as np
 import random
 from collections import deque
 import gym
+import time
 
 GAMMA = 0.9  # targetQ保留率
 INITIAL_EPSILON = 0.1  # 起始随机游走概率
@@ -11,7 +12,7 @@ OBSERVE = 1000  # 先观察OBSERVE次，然后再训练
 REPLAY_MEMORY = 10000  # 经验回放缓存大小
 BATCH_SIZE = 200  # 每一批的训练量
 TARGET_Q_STEP = 100  # 目标网络同步的训练次数
-VALIDATE = 500  # 每VALIDATE次查看一次训练效果
+VALIDATE = 1000  # 每VALIDATE次查看一次训练效果
 
 ENV_NAME = 'reversi-v0'  # 黑白棋环境名称
 EPISODE = 10000  # 比赛次数
@@ -208,6 +209,31 @@ class DQN:
             # 保存模型
             if episode % SAVE_EPISODE == 0:
                 saver.save(self.sess, 'save/', global_step=episode)
+
+            # 验证
+            if (episode + 1) % VALIDATE == 0:
+                board = self.env.reset()
+                color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
+                turn = 0  # 控制执棋方
+
+                while True:
+                    print("------------------------step {}--------------------------".format(turn + 1))
+                    self.env.render()
+                    action = self.action(board, color)
+                    new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))
+
+                    # 双方轮流下棋
+                    color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
+                    board = new_board  # 更新棋盘
+
+                    time.sleep(1)
+                    turn += 1
+                    if terminal != self.env.GAMING:  # 结束比赛
+                        print("------------------------step {}--------------------------".format(turn + 1))
+                        self.env.render()
+                        winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                        print('胜利方为' + winner)
+                        break
 
 
 def main():
