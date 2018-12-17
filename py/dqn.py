@@ -165,7 +165,7 @@ class DQN:
         else:
             print("未发现之前的模型，重新开始训练")
 
-        self.sess.run(tf.initialize_all_variables())
+        self.sess.run(tf.global_variables_initializer())
         if not (checkpoint and checkpoint.model_checkpoint_path):
             self.copyWeightsToTarget()
         # ----------------------------initial----------------------------
