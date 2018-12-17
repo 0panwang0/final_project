@@ -124,37 +124,25 @@ class ReversiEnv(gym.Env):
         :return:下一个状态，动作价值，是否结束
         """
         win_reward = 100
-        lose_reward = -100
+        lose_reward = 100
         draw_reward = 0
-        gaming_reward = 0
+        gaming_reward = -20
 
         if action[0] != -1:
             self.clear_skip()
-
             self.flip(action[0], action[1])
-            board = self.__get_board()
-            winner = self.winner()
-            if winner == action[2]:
-                return board, win_reward, winner
-            elif winner == self.DRAW:
-                return board, draw_reward, winner
-            elif winner == self.GAMING:
-                return board, gaming_reward, winner
-            else:  # 对方胜利
-                return board, lose_reward, winner
-
         else:
             self.skip()
-            board = self.__get_board()
-            winner = self.winner()
-            if winner == action[2]:
-                return board, win_reward, winner
-            elif winner == self.DRAW:
-                return board, draw_reward, winner
-            elif winner == self.GAMING:
-                return board, gaming_reward, winner
-            else:  # 对方胜利
-                return board, lose_reward, winner
+        board = self.__get_board()
+        winner = self.winner()
+        if winner == action[2]:
+            return board, win_reward, winner
+        elif winner == self.DRAW:
+            return board, draw_reward, winner
+        elif winner == self.GAMING:
+            return board, gaming_reward, winner
+        else:  # 对方胜利
+            return board, lose_reward, winner
 
     def reset(self):
         self.black_board = 0

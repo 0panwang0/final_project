@@ -11,7 +11,7 @@ FINAL_EPSILON = 0.01  # 最终随机游走概率，也就是说概率不能比�
 OBSERVE = 1000  # 先观察OBSERVE次，然后再训练
 REPLAY_MEMORY = 10000  # 经验回放缓存大小
 BATCH_SIZE = 200  # 每一批的训练量
-TARGET_Q_STEP = 100  # 目标网络同步的训练次数
+SYNCHRONOUS = 100  # 目标网络同步的训练次数
 VALIDATE = 1000  # 每VALIDATE次查看一次训练效果
 
 ENV_NAME = 'reversi-v0'  # 黑白棋环境名称
@@ -32,50 +32,24 @@ class DQN:
         self.epsilon = INITIAL_EPSILON  # 随机游走率
         self.hide_layer_nums = 64  # 隐藏层数量
         self.sess = tf.InteractiveSession()  # 会话
-        self.cnt = 1  # 计数器，储存训练次数
 
         # 输入层
         self.board_input = tf.placeholder("float", [None, self.env.BOARD_SIZE])
 
         # Q网络
-        self.Qtable, self.Q_Weihgts = self.createNetwork()
-        self.TargetQtable, self.TargetQ_Weights = self.createNetwork()
+        self.Qtable, self.Q_Weihgts = self.__createNetwork()
+        self.TargetQtable, self.TargetQ_Weights = self.__createNetwork()
 
         # 定义优化器
-        self.action_input, self.y_input, self.optimizer, self.loss = self.buildOptimizer()
+        self.action_input, self.y_input, self.optimizer, self.loss = self.__buildOptimizer()
 
-    def createNetwork(self):
-        # 输入层权重
-        W1 = self.weight_variable([self.env.BOARD_SIZE, self.hide_layer_nums])
-        b1 = self.bias_variable([self.hide_layer_nums])
-        # 隐藏层权重
-        W2 = self.weight_variable([self.hide_layer_nums, self.env.BOARD_SIZE])
-        b2 = self.bias_variable([self.env.BOARD_SIZE])
-        # 定义隐藏层
-        h_layer = tf.nn.relu(tf.matmul(self.board_input, W1) + b1)
-        # 定义table
-        table = tf.matmul(h_layer, W2) + b2
-        # 保存权重
-        weights = [W1, b1, W2, b2]
-
-        return table, weights
-
+    # ------------------------------------public------------------------------------
     def copyWeightsToTarget(self):
         """
         targetQ <- Q，详见2015年的那篇论文
         """
         for i in range(len(self.Q_Weihgts)):
             self.sess.run(tf.assign(self.TargetQ_Weights[i], self.Q_Weihgts[i]))
-
-    def buildOptimizer(self):
-        a_input = tf.placeholder("float", [None, self.env.BOARD_SIZE])  # 预测的动作(落子位置)
-        y_input = tf.placeholder("float", [None])  # 实际的"最佳"动作
-
-        # 定义优化器
-        readout_action = tf.reduce_sum(tf.multiply(self.Qtable, a_input), reduction_indices=1)
-        loss = tf.reduce_mean(tf.square(y_input - readout_action))
-        optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
-        return a_input, y_input, optimizer, loss
 
     def trainNetwork(self):
         minibatch = random.sample(self.buffer, BATCH_SIZE)
@@ -103,6 +77,7 @@ class DQN:
     def epsilon_greedy(self, board, my_color):
         """
         这个是用于训练的
+        获取落子位置
         """
 
         Qtable = self.Qtable.eval(feed_dict={
@@ -119,9 +94,6 @@ class DQN:
             if i not in valid_action:
                 Qtable[i] = -float('inf')
 
-        # 随机游走率随着迭代次数逐渐降低
-        self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / 10000
-
         if random.random() <= self.epsilon:  # 随机游走
             return random.choice(valid_action)
         else:  # 取权重最大的那个落子位置
@@ -130,6 +102,7 @@ class DQN:
     def action(self, board, my_color):
         """
         这个是用于检验效果的，所以不用随机游走
+        获取落子位置
         """
 
         Qtable = self.Qtable.eval(
@@ -154,20 +127,48 @@ class DQN:
         initial = tf.constant(0.01, shape=shape)
         return tf.Variable(initial)
 
+    def validate(self):
+        """
+        用于测试训练效果
+        """
+        board = self.env.reset()
+        color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
+        turn = 0  # 控制执棋方
+
+        while True:
+            print("------------------------step {}--------------------------".format(turn + 1))
+            self.env.render()
+            action = self.action(board, color)
+            new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))
+
+            # 双方轮流下棋
+            color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
+            board = new_board  # 更新棋盘
+
+            time.sleep(1)
+            turn += 1
+            if terminal != self.env.GAMING:  # 结束比赛
+                print("------------------------step {}--------------------------".format(turn + 1))
+                self.env.render()
+                winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                print('胜利方为' + winner)
+                break
+
     def run(self):
         # ----------------------------initial----------------------------
-        saver = tf.train.Saver()  # 储存器
-        checkpoint = tf.train.get_checkpoint_state('save/')
+        cnt = 1  # 计数器，储存训练次数
 
-        if checkpoint and checkpoint.model_checkpoint_path:
-            saver.restore(self.sess, checkpoint.model_checkpoint_path)
+        saver = tf.train.Saver()  # 储存器
+        checkpoint = tf.train.latest_checkpoint('save/')
+        if checkpoint:
+            saver.restore(self.sess, checkpoint)
             print("加载之前的模型")
         else:
             print("未发现之前的模型，重新开始训练")
+            self.sess.run(tf.initialize_all_variables())
 
-        self.sess.run(tf.initialize_all_variables())
-        if not (checkpoint and checkpoint.model_checkpoint_path):
-            self.copyWeightsToTarget()
+        # if not checkpoint:
+        self.copyWeightsToTarget()
         # ----------------------------initial----------------------------
 
         for episode in range(EPISODE):
@@ -178,8 +179,8 @@ class DQN:
             # 开始训练
             turn = 0  # 控制执棋方
             while True:
-                # 自己下一步棋
                 action = self.epsilon_greedy(board, color)  # 获取下一步的行动
+
                 new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))  # 根据行动得到下一状态、奖励、游戏是否终止三个参数
 
                 if action != -1:
@@ -189,11 +190,12 @@ class DQN:
                     self.buffer.append([board, action_list, reward, new_board, terminal])
                     # 当经验池中的数据足够多时开始训练
                     if len(self.buffer) > OBSERVE:
-                        self.cnt += 1
+                        cnt += 1
                         loss = self.trainNetwork()
                         print("loss:", loss)
-                        # 同步目标网络
-                        if self.cnt % TARGET_Q_STEP == 0:
+
+                        # 每训练SYNCHRONOUS次同步一次目标网络
+                        if cnt % SYNCHRONOUS == 0:
                             self.copyWeightsToTarget()
 
                 # 双方轮流下棋
@@ -206,34 +208,43 @@ class DQN:
                     break
                 turn += 1
 
-            # 保存模型
-            if episode % SAVE_EPISODE == 0:
+            # 随机游走率随着迭代次数逐渐降低
+            self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EPISODE
+
+            # 每SAVE_EPISODE次保存一次模型
+            if (episode + 1) % SAVE_EPISODE == 0:
                 saver.save(self.sess, 'save/', global_step=episode)
 
-            # 验证
+            # 每VALIDATE次测试一次效果
             if (episode + 1) % VALIDATE == 0:
-                board = self.env.reset()
-                color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
-                turn = 0  # 控制执棋方
+                self.validate()
 
-                while True:
-                    print("------------------------step {}--------------------------".format(turn + 1))
-                    self.env.render()
-                    action = self.action(board, color)
-                    new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))
+    # ------------------------------------private------------------------------------
+    def __createNetwork(self):
+        # 输入层权重
+        W1 = self.weight_variable([self.env.BOARD_SIZE, self.hide_layer_nums])
+        b1 = self.bias_variable([self.hide_layer_nums])
+        # 隐藏层权重
+        W2 = self.weight_variable([self.hide_layer_nums, self.env.BOARD_SIZE])
+        b2 = self.bias_variable([self.env.BOARD_SIZE])
+        # 定义隐藏层
+        h_layer = tf.nn.relu(tf.matmul(self.board_input, W1) + b1)
+        # 定义table
+        table = tf.matmul(h_layer, W2) + b2
+        # 保存权重
+        weights = [W1, b1, W2, b2]
 
-                    # 双方轮流下棋
-                    color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
-                    board = new_board  # 更新棋盘
+        return table, weights
 
-                    time.sleep(1)
-                    turn += 1
-                    if terminal != self.env.GAMING:  # 结束比赛
-                        print("------------------------step {}--------------------------".format(turn + 1))
-                        self.env.render()
-                        winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
-                        print('胜利方为' + winner)
-                        break
+    def __buildOptimizer(self):
+        a_input = tf.placeholder("float", [None, self.env.BOARD_SIZE])  # 预测的动作(落子位置)
+        y_input = tf.placeholder("float", [None])  # 实际的"最佳"动作
+
+        # 定义优化器
+        readout_action = tf.reduce_sum(tf.multiply(self.Qtable, a_input), reduction_indices=1)
+        loss = tf.reduce_mean(tf.square(y_input - readout_action))
+        optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
+        return a_input, y_input, optimizer, loss
 
 
 def main():
