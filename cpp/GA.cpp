@@ -1,7 +1,8 @@
 #include "GA.hpp"
 #include <limits>
+#include <cmath>
 
-#define THREAD_NUM 64
+#define THREAD_NUM 32
 
 using namespace std;
 
@@ -89,80 +90,51 @@ void GA::destroyGroup(uint32_t *group) {
     delete[] group;
 }
 
-void* threadFunction(void* param){
-    threadParam* par = (threadParam*)(param);
-    int start = par->index * par->size / par->degree, end = start + par->size / par->degree;
-    int score, temp;
-    for(int i = start; i < end; i+=par->step){
-        score = chromosomeCompetition(par->group[par->schedule[i]], par->group[par->schedule[i+par->step/2]]) ? 1 : -1;
-        score -= chromosomeCompetition(par->group[par->schedule[i+par->step/2]], par->group[par->schedule[i]]) ? 1 : -1;
-        par->result[par->schedule[i]].fitness += score;
-        par->result[par->schedule[i+par->step/2]].fitness -= score;
-        if(score < 0){
-            temp = par->schedule[i];
-            par->schedule[i] = par->schedule[i+par->step/2];
-            par->schedule[i+par->step/2] = temp;
+void* threadFunc(void* param){
+    threadParam* par = (threadParam*)param;
+    int step = par->size / par->threadCount;
+    int start = par->threadIdx * step, end = (par->threadIdx+1) * step;
+    int temp;
+    for(int i = start; i < end; i++){
+        for(int j = 0; j < par->size; j++){
+            if(i == j){
+                continue;
+            }
+            if(chromosomeCompetition(par->group[i], par->group[j])){
+                temp += 1;
+            }
+            if(!chromosomeCompetition(par->group[j], par->group[i])){
+                temp += 1;
+            }
+            par->result[i].fitness += temp;
         }
     }
 }
 
-// 计算一个族群中每个个体的适应度，通过类似淘汰赛的机制累加积分得到适应度
+// 计算一个族群中每个个体的适应度
 ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     printf("calculateFitness\n");
     ChrFit* result = new ChrFit[size];
-    int step;
+    pthread_t* threads = new pthread_t[THREAD_NUM];
     for(int i = 0; i < size; i++){
         result[i].chr = group[i];
     }
-//    for(int i = 0; i < size; i++){
-//        for(int j = 0; j < size; j++){
-//            if(i == j){
-//                continue;
-//            }
-//            temp = chromosomeCompetition(group[i], group[j]) ? 1 : -1;
-//            result[i].fitness += temp;
-//            result[j].fitness -= temp;
-//        }
-//    }
-    int schedule[size];
-    for(int i = 0; i < size; i++){
-        schedule[i] = i;
+    for(int i = 0; i < THREAD_NUM; i ++){
+        threadParam param(group, result, size, THREAD_NUM, i);
+        pthread_create(threads+i, nullptr, threadFunc, &param);
     }
-
-    step = 2;
-    int degree = size / 2 > THREAD_NUM ? THREAD_NUM : size / step;
-    pthread_t* ths = new pthread_t[degree];
-    while(step <= size){
-        degree = size / step > THREAD_NUM ? THREAD_NUM : size / step;
-        for(int i = 0; i < degree; i ++){
-            threadParam par(group, schedule, result, size, degree, step, i);
-            pthread_create(&ths[i], nullptr, threadFunction, &par);
-        }
-        for(int i = 0; i < degree; i++){
-            pthread_join(ths[i], nullptr);
-        }
-//        for(int i = 0; i < size; i += step){
-//////            score = chromosomeCompetition(group[schedule[i]], group[schedule[i+step/2]]) ? 1 : -1;
-//////            score -= chromosomeCompetition(group[schedule[i+step/2]], group[schedule[i]]) ? 1 : -1;
-//////            result[schedule[i]].fitness += score;
-//////            result[schedule[i+step/2]].fitness -= score;
-//////            if(score < 0){
-//////                temp = schedule[i];
-//////                schedule[i] = schedule[i+step/2];
-//////                schedule[i+step/2] = temp;
-//////            }
-////        }
-        step *= 2;
+    for(int i = 0; i < THREAD_NUM; i++){
+        pthread_join(threads[i], nullptr);
     }
-    delete[] ths;
+    delete[] threads;
     sort(result, result+size, cmp);
     return result;
 }
 
 // 族群自然选择，将族群中适应度最高的部分族群放到族群后部，以便保留
-void GA::doReproduction(ChrFit *groupFit, uint32_t* group, int size, int chosen) {
+void GA::doReproduction(ChrFit *groupFit, uint32_t* group, int size) {
     printf("doReproduction\n");
-    for(int i = size-1; i >= size - chosen; i--){
+    for(int i = size-1; i >= 0; i--){
         group[i] = groupFit[i].chr;
     }
 }
@@ -174,9 +146,9 @@ void GA::doCrossover(ChrFit *groupFit, uint32_t *group, int size) {
     uint32_t chr1, chr2;
 
     for(int i = 0; i < size; i++){
-        index = generator() % size;
+        index = (int)sqrt(generator() % (size * size));
         chr1 = groupFit[index].chr;
-        index = generator() % size;
+        index = (int)sqrt(generator() % (size * size));
         chr2 = groupFit[index].chr;
         group[i] = chromosomeCrossover(chr1, chr2);
     }
@@ -186,8 +158,10 @@ void GA::doCrossover(ChrFit *groupFit, uint32_t *group, int size) {
 // 对交叉产生的新染色体进行变异
 void GA::doMutation(uint32_t *group, int size) {
     printf("doMutation\n");
-    for(int i = 0; i < size; i++){
-        group[i] = chromosomeMutation(group[i]);
+    int mutationFactor = 2, index;
+    for(int i = 0; i < size / mutationFactor; i++){
+        index = (int)(generator() % size);
+        group[index] = chromosomeMutation(group[index]);
     }
 }
 
@@ -203,11 +177,11 @@ void GA::algorithm() {
 //        if(loss < 5){
 //            break;
 //        }
-        doReproduction(grpFit, group, size, chosen);        // 自然选择
-        doCrossover(grpFit, group, size - chosen);          // 交叉繁衍
-        doMutation(group, size - chosen);                   // 基因变异
-        printChromosome(group[size-1]);                     // 处于优势的染色体
-        printChromosome(group[0]);                          // 处于劣势的染色体
+        doReproduction(grpFit, group, size);       // 自然选择
+        doCrossover(grpFit, group, size-chosen);          // 交叉繁衍
+        doMutation(group, size-chosen);                   // 基因变异
+        printChromosome(group[size-1]);                    // 处于优势的染色体
+        printChromosome(group[0]);                         // 处于劣势的染色体
         fflush(stdout);
     }
     destroyGroup(group);

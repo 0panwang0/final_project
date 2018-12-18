@@ -17,14 +17,12 @@ typedef struct chromosomeFitness{
 
 typedef struct threadParam{
     uint32_t* group;
-    int* schedule;
     ChrFit* result;
     int size;
-    int degree;
-    int step;
-    int index;
-    threadParam(uint32_t* grp, int* sch, ChrFit* res, int sz, int deg, int st, int idx)
-        :group(grp),schedule(sch),result(res),size(sz),degree(deg), step(st),index(idx){}
+    int threadCount;
+    int threadIdx;
+    threadParam(uint32_t* grp, ChrFit* res, int sz, int thc, int thi)
+            :group(grp),result(res),size(sz),threadCount(thc),threadIdx(thi){}
 }threadParam;
 
 uint32_t generateChromosome();      // 产生一条染色体
@@ -38,9 +36,9 @@ public:
     uint32_t* generateGroup(int size);      // 产生族群
     void destroyGroup(uint32_t* group);     // 销毁族群
     ChrFit* calculateFitness(uint32_t* group, int size);    // 计算适应度（运算量的大头）
-    void doReproduction(ChrFit* groupFit, uint32_t* group, int size, int choosen);  // 自然选择
-    void doCrossover(ChrFit* groupFit, uint32_t* group, int size);                  // 交叉繁衍
-    void doMutation(uint32_t* group, int size);                                     // 族群突变
+    void doReproduction(ChrFit* groupFit, uint32_t* group, int size);   // 自然选择
+    void doCrossover(ChrFit* groupFit, uint32_t* group, int size);      // 交叉繁衍
+    void doMutation(uint32_t* group, int size);                         // 族群突变
     void algorithm();   // GA算法
 };
 
