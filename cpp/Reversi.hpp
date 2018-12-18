@@ -131,7 +131,7 @@ private:
     // 哈希键值
     int key_;
 
-    unsigned char weights[4] = {1, 128, 32, 4};
+    unsigned char weights[4] = {2, 255, 98, 16};
 };
 
 
