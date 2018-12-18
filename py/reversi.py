@@ -238,6 +238,8 @@ class ReversiEnv(gym.Env):
         black_list = np.array(self.board_to_list(self.black_board))
         white_list = np.array(self.board_to_list(self.white_board))
         board = np.zeros([self.BOARD_SIZE])
-        board[black_list] = self.BLACK
-        board[white_list] = self.WHITE
+        if len(black_list):
+            board[black_list] = self.BLACK
+        if len(white_list):
+            board[white_list] = self.WHITE
         return board
