@@ -2,8 +2,8 @@ import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
-import gym
 import time
+from reversi import ReversiEnv
 
 GAMMA = 0.9  # targetQ保留率
 INITIAL_EPSILON = 0.1  # 起始随机游走概率
@@ -12,11 +12,11 @@ OBSERVE = 1000  # 先观察OBSERVE次，然后再训练
 REPLAY_MEMORY = 10000  # 经验回放缓存大小
 BATCH_SIZE = 200  # 每一批的训练量
 SYNCHRONOUS = 100  # 目标网络同步的训练次数
-VALIDATE = 1000  # 每VALIDATE次查看一次训练效果
+VALIDATE = 500  # 每VALIDATE次查看一次训练效果
 
 ENV_NAME = 'reversi-v0'  # 黑白棋环境名称
 EPISODE = 10000  # 比赛次数
-SAVE_EPISODE = 1000  # 每比赛SAVE_EPOCH次保存一次模型
+SAVE_EPISODE = 500  # 每比赛SAVE_EPOCH次保存一次模型
 
 # 棋子颜色
 BLACK = -1
@@ -31,7 +31,7 @@ class DQN:
         self.buffer = deque(maxlen=REPLAY_MEMORY)  # 经验池
         self.epsilon = INITIAL_EPSILON  # 随机游走率
         self.hide_layer_nums = 64  # 隐藏层数量
-        self.sess = tf.InteractiveSession()  # 会话
+        self.sess = None  # 会话
 
         # 输入层
         self.board_input = tf.placeholder("float", [None, self.env.BOARD_SIZE])
@@ -159,65 +159,70 @@ class DQN:
         cnt = 1  # 计数器，储存训练次数
 
         saver = tf.train.Saver()  # 储存器
-        checkpoint = tf.train.latest_checkpoint('save/')
-        if checkpoint:
-            saver.restore(self.sess, checkpoint)
-            print("加载之前的模型")
-        else:
-            print("未发现之前的模型，重新开始训练")
-            self.sess.run(tf.initialize_all_variables())
 
-        # if not checkpoint:
-        self.copyWeightsToTarget()
-        # ----------------------------initial----------------------------
+        with tf.Session() as sess:
+            self.sess = sess
 
-        for episode in range(EPISODE):
-            print('--------------EPISODE:', episode, '--------------')
+            checkpoint = tf.train.latest_checkpoint('save/')
+            if checkpoint:
+                saver.restore(self.sess, checkpoint)
+                print("加载之前的模型")
+            else:
+                print("未发现之前的模型，重新开始训练")
+                self.sess.run(tf.initialize_all_variables())
+                self.copyWeightsToTarget()
 
-            board = self.env.reset()  # 获得棋盘
-            color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
-            # 开始训练
-            turn = 0  # 控制执棋方
-            while True:
-                action = self.epsilon_greedy(board, color)  # 获取下一步的行动
+            # if not checkpoint:
+            # ----------------------------initial----------------------------
 
-                new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))  # 根据行动得到下一状态、奖励、游戏是否终止三个参数
+            for episode in range(EPISODE):
+                print('--------------EPISODE:', episode, '--------------')
 
-                if action != -1:
-                    action_list = np.zeros(self.env.BOARD_SIZE)
-                    action_list[action] = 1
-                    # 存放到经验池
-                    self.buffer.append([board, action_list, reward, new_board, terminal])
-                    # 当经验池中的数据足够多时开始训练
-                    if len(self.buffer) > OBSERVE:
-                        cnt += 1
-                        loss = self.trainNetwork()
-                        print("loss:", loss)
+                board = self.env.reset()  # 获得棋盘
+                color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
+                # 开始训练
+                turn = 0  # 控制执棋方
+                while True:
+                    action = self.epsilon_greedy(board, color)  # 获取下一步的行动
 
-                        # 每训练SYNCHRONOUS次同步一次目标网络
-                        if cnt % SYNCHRONOUS == 0:
-                            self.copyWeightsToTarget()
+                    new_board, reward, terminal = self.env.step(
+                        (int(action), color, MY_COLOR))  # 根据行动得到下一状态、奖励、游戏是否终止三个参数
 
-                # 双方轮流下棋
-                color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
-                board = new_board  # 更新棋盘
+                    if action != -1:
+                        action_list = np.zeros(self.env.BOARD_SIZE)
+                        action_list[action] = 1
+                        # 存放到经验池
+                        self.buffer.append([board, action_list, reward, new_board, terminal])
+                        # 当经验池中的数据足够多时开始训练
+                        if len(self.buffer) > OBSERVE:
+                            cnt += 1
+                            loss = self.trainNetwork()
+                            print("loss:", loss)
 
-                if terminal != self.env.GAMING:  # 结束比赛
-                    winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
-                    print('胜利方为' + winner)
-                    break
-                turn += 1
+                            # 每训练SYNCHRONOUS次同步一次目标网络
+                            if cnt % SYNCHRONOUS == 0:
+                                self.copyWeightsToTarget()
 
-            # 随机游走率随着迭代次数逐渐降低
-            self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EPISODE
+                    # 双方轮流下棋
+                    color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
+                    board = new_board  # 更新棋盘
 
-            # 每SAVE_EPISODE次保存一次模型
-            if (episode + 1) % SAVE_EPISODE == 0:
-                saver.save(self.sess, 'save/', global_step=episode)
+                    if terminal != self.env.GAMING:  # 结束比赛
+                        winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                        print('胜利方为' + winner)
+                        break
+                    turn += 1
 
-            # 每VALIDATE次测试一次效果
-            if (episode + 1) % VALIDATE == 0:
-                self.validate()
+                # 随机游走率随着迭代次数逐渐降低
+                # self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EPISODE
+
+                # 每SAVE_EPISODE次保存一次模型
+                if (episode + 1) % SAVE_EPISODE == 0:
+                    saver.save(self.sess, 'save/', global_step=episode)
+
+                # 每VALIDATE次测试一次效果
+                if (episode + 1) % VALIDATE == 0:
+                    self.validate()
 
     # ------------------------------------private------------------------------------
     def __createNetwork(self):
@@ -248,7 +253,7 @@ class DQN:
 
 
 def main():
-    env = gym.make(ENV_NAME)
+    env = ReversiEnv()
     agent = DQN(env)
     agent.run()
 
