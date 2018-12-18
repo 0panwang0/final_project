@@ -1,7 +1,7 @@
 #include "GA.hpp"
 #include <limits>
 
-#define THREAD_NUM 4
+#define THREAD_NUM 64
 
 using namespace std;
 
@@ -110,7 +110,7 @@ void* threadFunction(void* param){
 ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     printf("calculateFitness\n");
     ChrFit* result = new ChrFit[size];
-    int score, step, temp;
+    int step;
     for(int i = 0; i < size; i++){
         result[i].chr = group[i];
     }
@@ -154,6 +154,7 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
 ////        }
         step *= 2;
     }
+    delete[] ths;
     sort(result, result+size, cmp);
     return result;
 }
@@ -207,6 +208,7 @@ void GA::algorithm() {
         doMutation(group, size - chosen);                   // 基因变异
         printChromosome(group[size-1]);                     // 处于优势的染色体
         printChromosome(group[0]);                          // 处于劣势的染色体
+        fflush(stdout);
     }
     destroyGroup(group);
 }
