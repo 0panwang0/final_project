@@ -141,9 +141,9 @@ class ReversiEnv:
         :return:下一个状态，动作价值，是否结束
         """
         win_reward = 100
-        lose_reward = 100
+        lose_reward = -100
         draw_reward = 0
-        gaming_reward = -20
+        gaming_reward = 0
 
         if action[0] != -1:
             self.clear_skip()
