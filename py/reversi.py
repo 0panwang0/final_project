@@ -1,17 +1,9 @@
-import gym
-import logging
 import numpy as np
 import math
 
-logger = logging.getLogger(__name__)
 
-
-class ReversiEnv(gym.Env):
+class ReversiEnv:
     # --------------------------------------global-----------------------------------------
-    metadata = {
-        'render.modes': ['human', 'rgb_array'],
-        'video.frames_per_second': 2
-    }
     BLACK = -1
     WHITE = 1
     DRAW = 65535
@@ -175,7 +167,7 @@ class ReversiEnv(gym.Env):
 
         return res
 
-    def render(self, mode='human'):
+    def render(self):
         board = self.__get_board()
         for i in range(self.BOARD_WIDTH):
             for j in range(self.BOARD_WIDTH):
