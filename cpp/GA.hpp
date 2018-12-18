@@ -20,10 +20,11 @@ typedef struct threadParam{
     int* schedule;
     ChrFit* result;
     int size;
+    int degree;
     int step;
     int index;
-    threadParam(uint32_t* grp, int* sch, ChrFit* res, int sz, int st, int idx)
-        :group(grp),schedule(sch),result(res),size(sz),step(st),index(idx){}
+    threadParam(uint32_t* grp, int* sch, ChrFit* res, int sz, int deg, int st, int idx)
+        :group(grp),schedule(sch),result(res),size(sz),degree(deg), step(st),index(idx){}
 }threadParam;
 
 uint32_t generateChromosome();      // 产生一条染色体

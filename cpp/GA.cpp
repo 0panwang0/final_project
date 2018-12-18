@@ -91,7 +91,7 @@ void GA::destroyGroup(uint32_t *group) {
 
 void* threadFunction(void* param){
     threadParam* par = (threadParam*)(param);
-    int start = par->index * par->step, end = start + par->step;
+    int start = par->index * par->size / par->degree, end = start + par->size / par->degree;
     int score, temp;
     for(int i = start; i < end; i+=par->step){
         score = chromosomeCompetition(par->group[par->schedule[i]], par->group[par->schedule[i+par->step/2]]) ? 1 : -1;
@@ -135,7 +135,7 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     while(step <= size){
         degree = size / step > THREAD_NUM ? THREAD_NUM : size / step;
         for(int i = 0; i < degree; i ++){
-            threadParam par(group, schedule, result, size, step, i);
+            threadParam par(group, schedule, result, size, degree, step, i);
             pthread_create(&ths[i], nullptr, threadFunction, &par);
         }
         for(int i = 0; i < degree; i++){
