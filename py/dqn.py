@@ -14,15 +14,8 @@ BATCH_SIZE = 200  # 每一批的训练量
 SYNCHRONOUS = 100  # 目标网络同步的训练次数
 VALIDATE = 500  # 每VALIDATE次查看一次训练效果
 
-ENV_NAME = 'reversi-v0'  # 黑白棋环境名称
 EPISODE = 10000  # 比赛次数
 SAVE_EPISODE = 500  # 每比赛SAVE_EPOCH次保存一次模型
-
-# 棋子颜色
-BLACK = -1
-WHITE = 1
-MY_COLOR = BLACK  # 我的棋子的颜色
-OPP_COLOR = WHITE  # 对手棋子的颜色
 
 
 class DQN:
@@ -32,6 +25,9 @@ class DQN:
         self.epsilon = INITIAL_EPSILON  # 随机游走率
         self.hide_layer_nums = 64  # 隐藏层数量
         self.sess = None  # 会话
+
+        self.MY_COLOR = self.env.BLACK  # 我的棋子的颜色
+        self.OPP_COLOR = self.env.WHITE  # 对手棋子的颜色
 
         # 输入层
         self.board_input = tf.placeholder("float", [None, self.env.BOARD_SIZE])
@@ -44,6 +40,164 @@ class DQN:
         self.action_input, self.y_input, self.optimizer, self.loss = self.__buildOptimizer()
 
     # ------------------------------------public------------------------------------
+    def run(self):
+        # ----------------------------initial----------------------------
+        cnt = 1  # 计数器，储存训练次数
+
+        saver = tf.train.Saver()  # 储存器
+
+        with tf.Session() as sess:
+            self.sess = sess
+
+            checkpoint = tf.train.latest_checkpoint('save/')
+            if checkpoint:
+                saver.restore(self.sess, checkpoint)
+                print("加载之前的模型")
+            else:
+                print("未发现之前的模型，重新开始训练")
+                self.sess.run(tf.initialize_all_variables())
+                self.copyWeightsToTarget()
+
+            # if not checkpoint:
+            # ----------------------------initial----------------------------
+
+            for episode in range(EPISODE):
+                print('--------------EPISODE:', episode, '--------------')
+
+                board = self.env.reset()  # 获得棋盘
+                color = self.MY_COLOR  # 执棋方的颜色，初始为我的颜色
+                # 开始训练
+                turn = 0  # 控制执棋方
+                while True:
+                    action = self.epsilon_greedy(board, color)  # 获取下一步的行动
+
+                    new_board, reward, terminal = self.env.step(
+                        (int(action), color, self.MY_COLOR))  # 根据行动得到下一状态、奖励、游戏是否终止三个参数
+
+                    if action != -1:
+                        action_list = np.zeros(self.env.BOARD_SIZE)
+                        action_list[action] = 1
+                        # 存放到经验池
+                        self.buffer.append([board, action_list, reward, new_board, terminal])
+                        # 当经验池中的数据足够多时开始训练
+                        if len(self.buffer) > OBSERVE:
+                            cnt += 1
+                            loss = self.trainNetwork()
+                            print("loss:", loss)
+
+                            # 每训练SYNCHRONOUS次同步一次目标网络
+                            if cnt % SYNCHRONOUS == 0:
+                                self.copyWeightsToTarget()
+
+                    # 双方轮流下棋
+                    color = self.OPP_COLOR if turn % 2 == 0 else self.MY_COLOR
+                    board = new_board  # 更新棋盘
+
+                    if terminal != self.env.GAMING:  # 结束比赛
+                        winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                        print('胜利方为' + winner)
+                        break
+                    turn += 1
+
+                # 随机游走率随着迭代次数逐渐降低
+                # self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EPISODE
+
+                # 每SAVE_EPISODE次保存一次模型
+                if (episode + 1) % SAVE_EPISODE == 0:
+                    saver.save(self.sess, 'save/', global_step=episode)
+
+                # 每VALIDATE次测试一次效果
+                if (episode + 1) % VALIDATE == 0:
+                    self.validate()
+
+    def validate(self):
+        """
+        用于测试训练效果
+        """
+        board = self.env.reset()
+        color = self.MY_COLOR  # 执棋方的颜色，初始为我的颜色
+        turn = 0  # 控制执棋方
+
+        while True:
+            print("------------------------step {}--------------------------".format(turn + 1))
+            self.env.render()
+            action = self.action(board, color)
+            _, _, terminal = self.env.step((int(action), color, self.MY_COLOR))
+
+            # 双方轮流下棋
+            color = self.OPP_COLOR if turn % 2 == 0 else self.MY_COLOR
+
+            time.sleep(1)
+            turn += 1
+            if terminal != self.env.GAMING:  # 结束比赛
+                print("------------------------step {}--------------------------".format(turn + 1))
+                self.env.render()
+                winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                print('胜利方为' + winner)
+                break
+
+    def Game(self, ai_color):
+        """
+        人机交互游戏
+        :param ai_color: AI棋子颜色
+        """
+        saver = tf.train.Saver()  # 储存器
+        with tf.Session() as sess:
+            self.sess = sess
+
+            checkpoint = tf.train.latest_checkpoint('save/')
+            if checkpoint:
+                saver.restore(self.sess, checkpoint)
+                print("加载之前的模型")
+            else:
+                print("错误！未发现之前的模型")
+                return False
+
+            # 开始游戏
+            human_turn = 0 if ai_color == self.env.WHITE else 1
+
+            board = self.env.reset()
+            color = self.env.BLACK  # 执棋方的颜色，初始为黑色
+            turn = 0  # 控制执棋方
+            terminal = self.env.GAMING  # 设置游戏状态为正在玩游戏
+
+            print("------------------------step {}--------------------------".format(0))
+            self.env.render()
+            while True:
+                print("------------------------step {}--------------------------".format(turn + 1))
+                valid_pos = self.env.get_valid_pos(color)
+                if len(valid_pos):
+                    if turn % 2 == human_turn:
+                        action = -1
+                        while action not in valid_pos:
+                            try:
+                                pos = input("请输入落子位置：")
+                                pos = list(map(int, pos.split(' ')))
+                                action = pos[0] * self.env.BOARD_WIDTH + pos[1]
+                                if action not in valid_pos:
+                                    print("位置错误")
+                            except:
+                                print("输入格式错误")
+                        _, _, terminal = self.env.step((action, color, ai_color))
+
+                    else:
+                        action = self.action(board, color)
+                        _, _, terminal = self.env.step((int(action), color, ai_color))
+                        print("AI落子位置为：", action // self.env.BOARD_WIDTH, action % self.env.BOARD_WIDTH)
+                else:
+                    print("无子可下。")
+                # 双方轮流下棋
+                color = self.env.WHITE if color == self.env.BLACK else self.env.BLACK
+
+                turn += 1
+                if terminal != self.env.GAMING:  # 结束比赛
+                    print("------------------------step {}--------------------------".format(turn + 1))
+                    self.env.render()
+                    winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
+                    print('胜利方为' + winner)
+                    return True
+                self.env.render()
+
     def copyWeightsToTarget(self):
         """
         targetQ <- Q，详见2015年的那篇论文
@@ -60,7 +214,7 @@ class DQN:
         n_b_batch = [d[3] for d in minibatch]
 
         y_batch = []
-        Qtable_batch = self.Qtable.eval(feed_dict={self.board_input: n_b_batch})
+        Qtable_batch = self.TargetQtable.eval(feed_dict={self.board_input: n_b_batch})
         for i in range(BATCH_SIZE):
             terminal = minibatch[i][4]
             if terminal == self.env.GAMING:
@@ -127,115 +281,22 @@ class DQN:
         initial = tf.constant(0.01, shape=shape)
         return tf.Variable(initial)
 
-    def validate(self):
-        """
-        用于测试训练效果
-        """
-        board = self.env.reset()
-        color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
-        turn = 0  # 控制执棋方
-
-        while True:
-            print("------------------------step {}--------------------------".format(turn + 1))
-            self.env.render()
-            action = self.action(board, color)
-            new_board, reward, terminal = self.env.step((int(action), color, MY_COLOR))
-
-            # 双方轮流下棋
-            color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
-            board = new_board  # 更新棋盘
-
-            time.sleep(1)
-            turn += 1
-            if terminal != self.env.GAMING:  # 结束比赛
-                print("------------------------step {}--------------------------".format(turn + 1))
-                self.env.render()
-                winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
-                print('胜利方为' + winner)
-                break
-
-    def run(self):
-        # ----------------------------initial----------------------------
-        cnt = 1  # 计数器，储存训练次数
-
-        saver = tf.train.Saver()  # 储存器
-
-        with tf.Session() as sess:
-            self.sess = sess
-
-            checkpoint = tf.train.latest_checkpoint('save/')
-            if checkpoint:
-                saver.restore(self.sess, checkpoint)
-                print("加载之前的模型")
-            else:
-                print("未发现之前的模型，重新开始训练")
-                self.sess.run(tf.initialize_all_variables())
-                self.copyWeightsToTarget()
-
-            # if not checkpoint:
-            # ----------------------------initial----------------------------
-
-            for episode in range(EPISODE):
-                print('--------------EPISODE:', episode, '--------------')
-
-                board = self.env.reset()  # 获得棋盘
-                color = MY_COLOR  # 执棋方的颜色，初始为我的颜色
-                # 开始训练
-                turn = 0  # 控制执棋方
-                while True:
-                    action = self.epsilon_greedy(board, color)  # 获取下一步的行动
-
-                    new_board, reward, terminal = self.env.step(
-                        (int(action), color, MY_COLOR))  # 根据行动得到下一状态、奖励、游戏是否终止三个参数
-
-                    if action != -1:
-                        action_list = np.zeros(self.env.BOARD_SIZE)
-                        action_list[action] = 1
-                        # 存放到经验池
-                        self.buffer.append([board, action_list, reward, new_board, terminal])
-                        # 当经验池中的数据足够多时开始训练
-                        if len(self.buffer) > OBSERVE:
-                            cnt += 1
-                            loss = self.trainNetwork()
-                            print("loss:", loss)
-
-                            # 每训练SYNCHRONOUS次同步一次目标网络
-                            if cnt % SYNCHRONOUS == 0:
-                                self.copyWeightsToTarget()
-
-                    # 双方轮流下棋
-                    color = OPP_COLOR if turn % 2 == 0 else MY_COLOR
-                    board = new_board  # 更新棋盘
-
-                    if terminal != self.env.GAMING:  # 结束比赛
-                        winner = "黑方" if terminal == self.env.BLACK else "白方" if terminal == self.env.WHITE else "平局"
-                        print('胜利方为' + winner)
-                        break
-                    turn += 1
-
-                # 随机游走率随着迭代次数逐渐降低
-                # self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EPISODE
-
-                # 每SAVE_EPISODE次保存一次模型
-                if (episode + 1) % SAVE_EPISODE == 0:
-                    saver.save(self.sess, 'save/', global_step=episode)
-
-                # 每VALIDATE次测试一次效果
-                if (episode + 1) % VALIDATE == 0:
-                    self.validate()
-
     # ------------------------------------private------------------------------------
     def __createNetwork(self):
         # 输入层权重
         W1 = self.weight_variable([self.env.BOARD_SIZE, self.hide_layer_nums])
         b1 = self.bias_variable([self.hide_layer_nums])
-        # 隐藏层权重
+        # 隐藏层1权重
         W2 = self.weight_variable([self.hide_layer_nums, self.env.BOARD_SIZE])
         b2 = self.bias_variable([self.env.BOARD_SIZE])
+        # 隐藏层2权重
+        W3 = self.weight_variable([self.hide_layer_nums, self.env.BOARD_SIZE])
+        b3 = self.bias_variable([self.env.BOARD_SIZE])
         # 定义隐藏层
-        h_layer = tf.nn.relu(tf.matmul(self.board_input, W1) + b1)
+        h_layer1 = tf.nn.relu(tf.matmul(self.board_input, W1) + b1)
+        h_layer2 = tf.nn.relu(tf.matmul(h_layer1, W2) + b2)
         # 定义table
-        table = tf.matmul(h_layer, W2) + b2
+        table = tf.matmul(h_layer2, W2) + b2
         # 保存权重
         weights = [W1, b1, W2, b2]
 
