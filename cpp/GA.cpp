@@ -1,6 +1,8 @@
 #include "GA.hpp"
 #include <limits>
 
+#define THREAD_NUM 4
+
 using namespace std;
 
 default_random_engine generator;
@@ -49,9 +51,11 @@ uint32_t chromosomeMutation(uint32_t chr) {
 }
 
 // 使用两条染色体初始化权重，进行黑白棋对抗
-int chromosomeCompetition(Reversi& game, AI& bot, uint32_t chr1, uint32_t chr2) {
+int chromosomeCompetition(uint32_t chr1, uint32_t chr2) {
     int idx;
     bool round;
+    Reversi game;
+    AI bot;
     game.Initialize();
     round = true;
     while(!game.IsOver()){
@@ -85,12 +89,27 @@ void GA::destroyGroup(uint32_t *group) {
     delete[] group;
 }
 
+void* threadFunction(void* param){
+    threadParam* par = (threadParam*)(param);
+    int start = par->index * par->step, end = start + par->step;
+    int score, temp;
+    for(int i = start; i < end; i+=par->step){
+        score = chromosomeCompetition(par->group[par->schedule[i]], par->group[par->schedule[i+par->step/2]]) ? 1 : -1;
+        score -= chromosomeCompetition(par->group[par->schedule[i+par->step/2]], par->group[par->schedule[i]]) ? 1 : -1;
+        par->result[par->schedule[i]].fitness += score;
+        par->result[par->schedule[i+par->step/2]].fitness -= score;
+        if(score < 0){
+            temp = par->schedule[i];
+            par->schedule[i] = par->schedule[i+par->step/2];
+            par->schedule[i+par->step/2] = temp;
+        }
+    }
+}
+
 // 计算一个族群中每个个体的适应度，通过类似淘汰赛的机制累加积分得到适应度
 ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     printf("calculateFitness\n");
     ChrFit* result = new ChrFit[size];
-    Reversi game;
-    AI bot;
     int score, step, temp;
     for(int i = 0; i < size; i++){
         result[i].chr = group[i];
@@ -100,7 +119,7 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
 //            if(i == j){
 //                continue;
 //            }
-//            temp = chromosomeCompetition(game, bot, group[i], group[j]) ? 1 : -1;
+//            temp = chromosomeCompetition(group[i], group[j]) ? 1 : -1;
 //            result[i].fitness += temp;
 //            result[j].fitness -= temp;
 //        }
@@ -109,19 +128,30 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     for(int i = 0; i < size; i++){
         schedule[i] = i;
     }
+
     step = 2;
+    int degree = size / 2 > THREAD_NUM ? THREAD_NUM : size / step;
+    pthread_t* ths = new pthread_t[degree];
     while(step <= size){
-        for(int i = 0; i < size; i += step){
-            score = chromosomeCompetition(game, bot, group[schedule[i]], group[schedule[i+step/2]]) ? 1 : -1;
-            score -= chromosomeCompetition(game, bot, group[schedule[i+step/2]], group[schedule[i]]) ? 1 : -1;
-            result[schedule[i]].fitness += score;
-            result[schedule[i+step/2]].fitness -= score;
-            if(score < 0){
-                temp = schedule[i];
-                schedule[i] = schedule[i+step/2];
-                schedule[i+step/2] = temp;
-            }
+        degree = size / step > THREAD_NUM ? THREAD_NUM : size / step;
+        for(int i = 0; i < degree; i ++){
+            threadParam par(group, schedule, result, size, step, i);
+            pthread_create(&ths[i], nullptr, threadFunction, &par);
         }
+        for(int i = 0; i < degree; i++){
+            pthread_join(ths[i], nullptr);
+        }
+//        for(int i = 0; i < size; i += step){
+//////            score = chromosomeCompetition(group[schedule[i]], group[schedule[i+step/2]]) ? 1 : -1;
+//////            score -= chromosomeCompetition(group[schedule[i+step/2]], group[schedule[i]]) ? 1 : -1;
+//////            result[schedule[i]].fitness += score;
+//////            result[schedule[i+step/2]].fitness -= score;
+//////            if(score < 0){
+//////                temp = schedule[i];
+//////                schedule[i] = schedule[i+step/2];
+//////                schedule[i+step/2] = temp;
+//////            }
+////        }
         step *= 2;
     }
     sort(result, result+size, cmp);
@@ -161,7 +191,7 @@ void GA::doMutation(uint32_t *group, int size) {
 }
 
 void GA::algorithm() {
-    int epoch = 1000, size = 64, chosen = 16, loss;
+    int epoch = 1000, size = 128, chosen = 32, loss;
     uint32_t* group = generateGroup(size);
 
     for(int i = 0; i < epoch; i++){
