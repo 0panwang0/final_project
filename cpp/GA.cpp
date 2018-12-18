@@ -116,17 +116,19 @@ ChrFit* GA::calculateFitness(uint32_t *group, int size) {
     printf("calculateFitness\n");
     ChrFit* result = new ChrFit[size];
     pthread_t* threads = new pthread_t[THREAD_NUM];
+    threadParam* params = new threadParam[THREAD_NUM];
     for(int i = 0; i < size; i++){
         result[i].chr = group[i];
     }
     for(int i = 0; i < THREAD_NUM; i ++){
-        threadParam param(group, result, size, THREAD_NUM, i);
-        pthread_create(threads+i, nullptr, threadFunc, &param);
+        params[i].init(group, result, size, THREAD_NUM, i);
+        pthread_create(threads+i, nullptr, threadFunc, params+i);
     }
     for(int i = 0; i < THREAD_NUM; i++){
         pthread_join(threads[i], nullptr);
     }
     delete[] threads;
+    delete[] params;
     sort(result, result+size, cmp);
     return result;
 }
@@ -166,7 +168,7 @@ void GA::doMutation(uint32_t *group, int size) {
 }
 
 void GA::algorithm() {
-    int epoch = 1000, size = 128, chosen = 32, loss;
+    int epoch = 1000, size = 64, chosen = 32, loss;
     uint32_t* group = generateGroup(size);
 
     for(int i = 0; i < epoch; i++){
@@ -177,11 +179,11 @@ void GA::algorithm() {
 //        if(loss < 5){
 //            break;
 //        }
-        doReproduction(grpFit, group, size);       // 自然选择
-        doCrossover(grpFit, group, size-chosen);          // 交叉繁衍
-        doMutation(group, size-chosen);                   // 基因变异
-        printChromosome(group[size-1]);                    // 处于优势的染色体
-        printChromosome(group[0]);                         // 处于劣势的染色体
+        doReproduction(grpFit, group, size);                // 自然选择
+        doCrossover(grpFit, group, size-chosen);            // 交叉繁衍
+        doMutation(group, size-chosen);                     // 基因变异
+        printChromosome(group[size-1]);                     // 处于优势的染色体
+        printChromosome(group[0]);                          // 处于劣势的染色体
         fflush(stdout);
     }
     destroyGroup(group);
