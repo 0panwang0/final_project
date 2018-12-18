@@ -21,8 +21,13 @@ typedef struct threadParam{
     int size;
     int threadCount;
     int threadIdx;
-    threadParam(uint32_t* grp, ChrFit* res, int sz, int thc, int thi)
-            :group(grp),result(res),size(sz),threadCount(thc),threadIdx(thi){}
+    void init(uint32_t* grp, ChrFit* res, int sz, int thc, int thi) {
+        group = grp;
+        result = res;
+        size = sz;
+        threadCount = thc;
+        threadIdx = thi;
+    }
 }threadParam;
 
 uint32_t generateChromosome();      // 产生一条染色体
