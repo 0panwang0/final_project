@@ -51,6 +51,30 @@ class ReversiEnv:
 
         return self.board_to_list(pos)
 
+    def get_availble_pos(self, my_color, board):
+        '''
+        功能和get_valid_pos相同
+        只不过计算的是board能下棋的位置
+        '''
+        pos = 0
+        emp = self.__get_empty()
+
+        my = 0
+        opp = 0
+        for i in range(self.BOARD_SIZE):
+            if math.isclose(board[i], my_color, abs_tol=1e-6):
+                my |= (1 << i)
+            elif math.isclose(board[i], -my_color, abs_tol=1e-6):
+                opp |= (1 << i)
+
+        for i in range(8):
+            tmp = self.directions[i](my) & opp & self.MASK
+            for j in range(5):
+                tmp |= self.directions[i](tmp) & opp
+            pos |= self.directions[i](tmp) & emp
+
+        return self.board_to_list(pos)
+
     def flip(self, action, color):
         if color == self.BLACK:
             my = self.black_board | (1 << action)
