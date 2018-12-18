@@ -1,5 +1,3 @@
-'''https://zhuanlan.zhihu.com/p/21477488'''
-
 import tensorflow as tf
 import numpy as np
 import random
