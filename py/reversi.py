@@ -1,6 +1,7 @@
 import gym
 import logging
 import numpy as np
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class ReversiEnv(gym.Env):
         self.viewer = None
 
     # --------------------------------------public-----------------------------------------
-    def get_valid_pos(self, my_color):
+    def get_valid_pos(self, my_color, board=None):
         """
         根据棋子颜色获得该棋子所能下棋的位置
         :param my_color: 我的棋子的颜色
@@ -43,7 +44,15 @@ class ReversiEnv(gym.Env):
         pos = 0
         emp = self.__get_empty()
 
-        if my_color == self.BLACK:
+        if board:
+            my = 0
+            opp = 0
+            for i in range(self.BOARD_SIZE):
+                if math.isclose(board[i], my_color, abs_tol=1e-6):
+                    my |= 1 << i
+                elif math.isclose(board[i], -my_color, abs_tol=1e-6):
+                    opp |= 1 << i
+        elif my_color == self.BLACK:
             my = self.black_board
             opp = self.white_board
         else:
