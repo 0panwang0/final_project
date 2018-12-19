@@ -197,7 +197,7 @@ class ReversiEnv:
                 elif board[i * self.BOARD_WIDTH + j] == self.WHITE:
                     print("O", end=' ')
                 else:
-                    print("·", end=' ')
+                    print("-", end=' ')
             print()
 
     # --------------------------------------private-----------------------------------------
