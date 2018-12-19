@@ -185,7 +185,12 @@ class ReversiEnv:
 
     def render(self):
         board = self.__get_board()
+        print(' ', end=' ')
         for i in range(self.BOARD_WIDTH):
+            print(i, end=' ')
+        print()
+        for i in range(self.BOARD_WIDTH):
+            print(i, end=' ')
             for j in range(self.BOARD_WIDTH):
                 if board[i * self.BOARD_WIDTH + j] == self.BLACK:
                     print("*", end=' ')

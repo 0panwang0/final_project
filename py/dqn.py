@@ -58,7 +58,6 @@ class DQN:
                 self.sess.run(tf.initialize_all_variables())
                 self.copyWeightsToTarget()
 
-            # if not checkpoint:
             # ----------------------------initial----------------------------
 
             for episode in range(EPISODE):
