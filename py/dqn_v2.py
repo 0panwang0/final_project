@@ -7,7 +7,7 @@ from reversi import ReversiEnv
 
 GAMMA = 0.98
 ENV_NAME = 'reversi-v0'
-EPISODE = 10
+EPISODE = 1000
 REPLAY_MEMORY = 1000
 BATCH_SIZE = 256
 INITIAL_EPSILON = 0.5
@@ -22,9 +22,9 @@ WHITE = 1
 
 class DQN():
 
-    def __init__(self, env, color):
+    def __init__(self, env):
         self.env = env
-        self.color = color
+        self.color = BLACK
 
         self.replay_buffer = deque()
         self.buffer_length = 0
@@ -107,7 +107,7 @@ class DQN():
             if done[i] == True:
                 y.append(reward[i])
             else:
-                self.filter_value(value[i], board=next_state[i])
+                # self.filter_value(value[i], board=next_state[i])
                 y.append(reward[i] + GAMMA * np.max(value[i]))
 
         self.session.run(self.optimizer, feed_dict={
@@ -155,29 +155,34 @@ class DQN():
         return np.argmax(value)
 
     
-    def filter_value(self, value, valid_action=None, board=None):
+    def filter_value(self, value, valid_action=None):
         '''把不能落子的位置的Q-value设置为-inf'''
         if valid_action == None:
-            valid_action = self.env.get_availble_pos(self.color, board)
+            valid_action = self.env.get_valid_pos(self.color)
         valid_action = set(valid_action)
         for i in range(BOARD_SIZE):
             if i not in valid_action:
-                value[i] = float('-inf')
+                value[i] = -100000
 
 
     def change_player(self):
         self.color = WHITE if self.color == BLACK else BLACK
+
+
+    def reset_color(self):
+        self.color = BLACK
     
 
 def main():
     random.seed(int(time.time()))
 
     env = ReversiEnv()
-    agent = DQN(env, BLACK)
+    agent = DQN(env)
 
     for episode in range(EPISODE):
         print('---------- Episode #{} ----------'.format(episode))
         state1 = env.reset()
+        agent.reset_color()
         first = True
         loss = None
 
@@ -188,14 +193,18 @@ def main():
             done = True if winner != env.GAMING else False
             '''第一次下棋，state2不存在'''
             if not first:
-                first = False
                 loss = agent.perceive(state2, action2, reward2 - reward1, next_state2, done)
+            else:
+                first = False
             state2 = next_state2
             agent.change_player()
 
             if done:
                 agent.perceive(state1, action1, reward1 - reward2, next_state2, done)
                 break
+
+            if agent.time_step % 10 == 0 and loss:
+                print('Loss : {}'.format(loss))
 
             '''白方下棋'''
             action2 = agent.epsilon_greedy(state2)
@@ -209,8 +218,8 @@ def main():
                 agent.perceive(state2, action2, reward2 - reward1, next_state1, done)
                 break
 
-            if agent.time_step % 5 == 0 and loss:
-                print('{} : {}'.format(agent.time_step, loss))
+            if agent.time_step % 10 == 0 and loss:
+                print('Loss : {}'.format(loss))
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 # Ignore project configure folder.
 .gitignore
 /.idea
-*/__pycache/
+*/__pycache__/
 .vscode/
 /cpp/cmake-build-debug
 save/
